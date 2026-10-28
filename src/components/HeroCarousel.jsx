@@ -14,7 +14,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import StarIcon from '@mui/icons-material/Star';
 import { Link } from 'react-router-dom';
-import { getTrending } from '../api/tmdb.js';
+import { getTrending, getVideos } from '../api/tmdb.js';
 import useFetch from '../hooks/useFetch.js';
 
 const BACKDROP_BASE = 'https://image.tmdb.org/t/p/original';
@@ -22,21 +22,70 @@ const BACKDROP_BASE = 'https://image.tmdb.org/t/p/original';
 export default function HeroCarousel() {
   const { data, loading, error } = useFetch(getTrending, []);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [trailers, setTrailers] = useState({});
+  const [dwellIndex, setDwellIndex] = useState(null);
   const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const slides = (data?.results || []).filter(
     (item) => (item.media_type === 'movie' || item.media_type === 'tv') && item.backdrop_path,
   ).slice(0, 8);
   const activeItem = slides[activeIndex];
+  const activeTrailer = activeItem ? trailers[activeItem.id] : null;
+  const isTrailerPlaying = !!activeTrailer && dwellIndex === activeIndex;
 
   useEffect(() => {
-    if (prefersReducedMotion || slides.length < 2) return undefined;
+    if (!slides.length) {
+      setTrailers({});
+      return undefined;
+    }
 
-    const timer = window.setInterval(() => {
-      setActiveIndex((index) => (index + 1) % slides.length);
+    let cancelled = false;
+
+    const fetchTrailers = async () => {
+      const nextTrailers = {};
+
+      for (const slide of slides) {
+        try {
+          const { results = [] } = await getVideos(slide.media_type, slide.id);
+          const video = results.find(
+            (item) => item.site === 'YouTube' && item.type === 'Trailer',
+          ) || results.find((item) => item.site === 'YouTube' && item.type === 'Teaser');
+
+          if (video) {
+            nextTrailers[slide.id] = { id: slide.id, key: video.key };
+          }
+        } catch {
+          // Ignore missing or failed trailer lookups so the slide still renders normally.
+        }
+      }
+
+      if (!cancelled) {
+        setTrailers(nextTrailers);
+      }
+    };
+
+    fetchTrailers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slides]);
+
+  useEffect(() => {
+    if (!activeItem) return undefined;
+
+    const timer = window.setTimeout(() => setDwellIndex(activeIndex), 3500);
+    return () => window.clearTimeout(timer);
+  }, [activeIndex, activeItem, activeItem?.id, activeItem?.media_type]);
+
+  useEffect(() => {
+    if (prefersReducedMotion || slides.length < 2 || isTrailerPlaying) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setActiveIndex((activeIndex + 1) % slides.length);
     }, 6500);
 
-    return () => window.clearInterval(timer);
-  }, [prefersReducedMotion, slides.length]);
+    return () => window.clearTimeout(timer);
+  }, [activeIndex, isTrailerPlaying, prefersReducedMotion, slides.length]);
 
   if (loading) {
     return (
@@ -103,6 +152,23 @@ export default function HeroCarousel() {
           animation: prefersReducedMotion ? 'none' : 'heroFadeIn 900ms ease-out',
         }}
       />
+      {isTrailerPlaying && activeTrailer && (
+        <Box
+          component="iframe"
+          title={`${title} trailer`}
+          src={`https://www.youtube-nocookie.com/embed/${activeTrailer.key}?autoplay=1&mute=1&controls=0&playsinline=1&rel=0`}
+          allow="autoplay; encrypted-media; picture-in-picture"
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: -2,
+            width: '100%',
+            height: '100%',
+            border: 0,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
       <Box
         sx={{
           position: 'absolute',

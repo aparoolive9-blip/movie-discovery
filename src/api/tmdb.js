@@ -55,5 +55,9 @@ export function getTvGenres() {
 
 
 export function getDetails(type, id) {
-  return request(`/${type}/${id}`);
+  return request(`/${type}/${id}`, { append_to_response: 'videos' });
+}
+
+export function getVideos(type, id) {
+  return request(`/${type}/${id}/videos`);
 }

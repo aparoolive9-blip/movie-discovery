@@ -22,6 +22,13 @@ export default function Details() {
   const year = date ? date.slice(0, 4) : 'N/A';
   const rating = data.vote_average ? data.vote_average.toFixed(1) : 'N/A';
   const poster = data.poster_path ? IMG_BASE + data.poster_path : PLACEHOLDER;
+  const trailer = type === 'movie'
+    ? (data.videos?.results || []).find(
+      (video) => video.site === 'YouTube' && video.type === 'Trailer',
+    ) || (data.videos?.results || []).find(
+      (video) => video.site === 'YouTube' && video.type === 'Teaser',
+    )
+    : null;
   const overview = data.overview || 'No description available.';
 
   const inWatchlist = isInWatchlist(data.id, type);
@@ -42,7 +49,8 @@ export default function Details() {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+    <Box>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4, mb: trailer ? 5 : 0 }}>
       <Box
         component="img"
         src={poster}
@@ -82,6 +90,29 @@ export default function Details() {
           {inWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
         </Button>
       </Box>
+      </Box>
+
+      {trailer && (
+        <Box sx={{ maxWidth: 960 }}>
+          <Typography variant="h5" gutterBottom>
+            Trailer
+          </Typography>
+          <Box
+            component="iframe"
+            title={`${title} trailer`}
+            src={`https://www.youtube-nocookie.com/embed/${trailer.key}?rel=0`}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            sx={{
+              display: 'block',
+              width: '100%',
+              aspectRatio: '16 / 9',
+              border: 0,
+              borderRadius: 2,
+            }}
+          />
+        </Box>
+      )}
     </Box>
   );
 }
